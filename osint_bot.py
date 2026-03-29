@@ -21,11 +21,14 @@ from collections import Counter
 import time
 
 # ⚠️ CONFIGURACIÓN
-BOT_TOKEN = "8395396525:AAE5f4ffIyPXDcJ5Wvcu6ZxzVA8xL3hSy2I"  # Token de @BotFather
-ADMIN_IDS = [482330941]  # IDs de administradores del laboratorio
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+if not BOT_TOKEN:
+    raise ValueError("La variable de entorno BOT_TOKEN no está definida. Configúrala antes de iniciar el bot.")
+_admin_env = os.getenv("ADMIN_IDS", "")
+ADMIN_IDS = [int(x.strip()) for x in _admin_env.split(",") if x.strip()]
 
 # Base de datos
-DB_PATH = 'data/osint_lab.db'
+DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'osint_lab.db')
 
 class OSINTBot:
     def __init__(self):
@@ -622,6 +625,546 @@ async def mystats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     await update.message.reply_html(stats_text)
 
+# ==================== COMANDOS FALTANTES ====================
+
+async def reverse_image(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Búsqueda inversa de imagen (simulada)"""
+    if not context.args:
+        await update.message.reply_text(
+            "Uso: /reverse_image <url_imagen>\n"
+            "Ejemplo: /reverse_image https://ejemplo.com/foto.jpg"
+        )
+        return
+
+    url = context.args[0]
+    scanner_id = update.effective_user.id
+
+    await update.message.reply_text(f"🔎 Realizando búsqueda inversa de imagen: {url}")
+
+    # Simulación de búsqueda inversa (en producción se usaría una API real)
+    findings = {
+        'url': url,
+        'scan_date': datetime.now().isoformat(),
+        'similar_images': 3,
+        'possible_sources': ['Google Images', 'TinEye', 'Bing Visual Search'],
+        'faces_detected': 1,
+        'metadata_stripped': True,
+    }
+
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('''
+        INSERT INTO osint_scans (scanner_id, target_id, scan_type, findings, timestamp)
+        VALUES (?, ?, ?, ?, ?)
+    ''', (scanner_id, 0, 'reverse_image', json.dumps(findings), datetime.now().isoformat()))
+    conn.commit()
+    conn.close()
+
+    bot_instance.add_points(scanner_id, 10)
+
+    report = f"""
+🖼️ **Búsqueda Inversa de Imagen**
+
+**URL analizada:** {url}
+
+**Resultados (simulados):**
+• Imágenes similares encontradas: {findings['similar_images']}
+• Fuentes consultadas: {', '.join(findings['possible_sources'])}
+• Rostros detectados: {findings['faces_detected']}
+• Metadatos eliminados: {'Sí' if findings['metadata_stripped'] else 'No'}
+
+**Fecha del análisis:** {datetime.now().strftime('%Y-%m-%d %H:%M')}
+
+✅ +10 puntos por búsqueda inversa de imagen
+
+⚠️ Nota: Esta es una simulación educativa. En producción se usarían APIs reales (Google Vision, TinEye, etc.)
+    """
+
+    await update.message.reply_html(report)
+
+
+async def metadata(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Extraer metadatos de imagen (simulado)"""
+    # Verificar si el mensaje tiene una foto adjunta o si se responde a una foto
+    photo = None
+    if update.message.photo:
+        photo = update.message.photo[-1]
+    elif update.message.reply_to_message and update.message.reply_to_message.photo:
+        photo = update.message.reply_to_message.photo[-1]
+
+    scanner_id = update.effective_user.id
+
+    if photo:
+        await update.message.reply_text("📎 Analizando metadatos de la imagen adjunta...")
+        file_id = photo.file_id
+        file_size = photo.file_size or 0
+
+        findings = {
+            'source': 'telegram_photo',
+            'file_id': file_id,
+            'file_size': file_size,
+            'camera_make': 'Desconocido (Telegram elimina EXIF)',
+            'camera_model': 'Desconocido',
+            'gps_coords': 'Eliminado por Telegram',
+            'date_taken': 'Desconocido',
+            'software': 'Desconocido',
+            'scan_date': datetime.now().isoformat(),
+        }
+        source_info = f"Foto de Telegram (tamaño: {file_size} bytes)"
+    elif context.args:
+        url = context.args[0]
+        await update.message.reply_text(f"📎 Analizando metadatos de: {url}")
+
+        findings = {
+            'source': url,
+            'camera_make': 'Canon',
+            'camera_model': 'EOS 5D Mark IV',
+            'gps_coords': '40.4168° N, 3.7038° W',
+            'date_taken': '2024-03-15 14:32:00',
+            'software': 'Adobe Photoshop 2024',
+            'scan_date': datetime.now().isoformat(),
+        }
+        source_info = url
+    else:
+        await update.message.reply_text(
+            "Uso:\n"
+            "• /metadata <url_imagen> — analizar imagen por URL\n"
+            "• Responde a una foto con /metadata — analizar foto del chat"
+        )
+        return
+
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('''
+        INSERT INTO osint_scans (scanner_id, target_id, scan_type, findings, timestamp)
+        VALUES (?, ?, ?, ?, ?)
+    ''', (scanner_id, 0, 'metadata', json.dumps(findings), datetime.now().isoformat()))
+    conn.commit()
+    conn.close()
+
+    bot_instance.add_points(scanner_id, 15)
+
+    report = f"""
+📋 **Metadatos de Imagen**
+
+**Fuente:** {source_info}
+
+**EXIF Data:**
+• Cámara: {findings['camera_make']} {findings['camera_model']}
+• Fecha de captura: {findings['date_taken']}
+• Software: {findings['software']}
+• Coordenadas GPS: {findings['gps_coords']}
+
+**Análisis:**
+• Fecha del scan: {datetime.now().strftime('%Y-%m-%d %H:%M')}
+
+✅ +15 puntos por extracción de metadatos
+
+⚠️ Nota: Simulación educativa. Los metadatos EXIF pueden revelar ubicación y dispositivo del autor.
+    """
+
+    await update.message.reply_html(report)
+
+
+async def correlate(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Correlacionar y comparar dos usuarios"""
+    if len(context.args) < 2:
+        await update.message.reply_text("Uso: /correlate @usuario1 @usuario2")
+        return
+
+    username1 = context.args[0].replace('@', '')
+    username2 = context.args[1].replace('@', '')
+    scanner_id = update.effective_user.id
+
+    await update.message.reply_text(f"🔗 Correlacionando @{username1} y @{username2}...")
+
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
+    # Obtener mensajes de ambos usuarios
+    cursor.execute('''
+        SELECT message_text FROM activity_log
+        WHERE user_id IN (SELECT user_id FROM participants WHERE username = ?)
+        ORDER BY timestamp DESC LIMIT 100
+    ''', (username1,))
+    messages1 = [row[0] for row in cursor.fetchall() if row[0]]
+
+    cursor.execute('''
+        SELECT message_text FROM activity_log
+        WHERE user_id IN (SELECT user_id FROM participants WHERE username = ?)
+        ORDER BY timestamp DESC LIMIT 100
+    ''', (username2,))
+    messages2 = [row[0] for row in cursor.fetchall() if row[0]]
+
+    # Obtener actividad temporal de ambos
+    cursor.execute('''
+        SELECT strftime('%H', timestamp) as hour, COUNT(*) as cnt
+        FROM activity_log
+        WHERE user_id IN (SELECT user_id FROM participants WHERE username = ?)
+        GROUP BY hour ORDER BY cnt DESC LIMIT 3
+    ''', (username1,))
+    hours1 = cursor.fetchall()
+
+    cursor.execute('''
+        SELECT strftime('%H', timestamp) as hour, COUNT(*) as cnt
+        FROM activity_log
+        WHERE user_id IN (SELECT user_id FROM participants WHERE username = ?)
+        GROUP BY hour ORDER BY cnt DESC LIMIT 3
+    ''', (username2,))
+    hours2 = cursor.fetchall()
+
+    conn.close()
+
+    # Calcular similitud de vocabulario
+    words1 = set(re.findall(r'\w+', ' '.join(messages1).lower())) if messages1 else set()
+    words2 = set(re.findall(r'\w+', ' '.join(messages2).lower())) if messages2 else set()
+    common_words = words1 & words2
+    similarity = len(common_words) / max(len(words1 | words2), 1) * 100
+
+    # Horas activas en común
+    active_hours1 = {h for h, _ in hours1}
+    active_hours2 = {h for h, _ in hours2}
+    common_hours = active_hours1 & active_hours2
+
+    bot_instance.add_points(scanner_id, 25)
+
+    report = f"""
+🔗 **Correlación de Usuarios**
+
+**@{username1}** vs **@{username2}**
+
+**Mensajes analizados:**
+• @{username1}: {len(messages1)} mensajes
+• @{username2}: {len(messages2)} mensajes
+
+**Similitud de vocabulario:** {similarity:.1f}%
+**Palabras en común:** {len(common_words)}
+
+**Horas activas en común:** {', '.join(sorted(common_hours)) or 'No hay datos suficientes'}
+
+**Posible correlación:** {'⚠️ Alta' if similarity > 30 else '✅ Baja' if similarity > 0 else '❓ Sin datos suficientes'}
+
+✅ +25 puntos por análisis de correlación
+    """
+
+    await update.message.reply_html(report)
+
+
+async def activity(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Análisis de actividad de usuario"""
+    if not context.args:
+        await update.message.reply_text("Uso: /activity @usuario")
+        return
+
+    username = context.args[0].replace('@', '')
+    scanner_id = update.effective_user.id
+
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
+    # Total de mensajes
+    cursor.execute('''
+        SELECT COUNT(*) FROM activity_log
+        WHERE user_id IN (SELECT user_id FROM participants WHERE username = ?)
+    ''', (username,))
+    total_messages = cursor.fetchone()[0] or 0
+
+    # Distribución por hora del día
+    cursor.execute('''
+        SELECT strftime('%H', timestamp) as hour, COUNT(*) as cnt
+        FROM activity_log
+        WHERE user_id IN (SELECT user_id FROM participants WHERE username = ?)
+        GROUP BY hour ORDER BY cnt DESC LIMIT 5
+    ''', (username,))
+    hourly = cursor.fetchall()
+
+    # Distribución por día de la semana
+    cursor.execute('''
+        SELECT strftime('%w', timestamp) as weekday, COUNT(*) as cnt
+        FROM activity_log
+        WHERE user_id IN (SELECT user_id FROM participants WHERE username = ?)
+        GROUP BY weekday ORDER BY cnt DESC
+    ''', (username,))
+    weekly = cursor.fetchall()
+
+    # Primera y última actividad
+    cursor.execute('''
+        SELECT MIN(timestamp), MAX(timestamp)
+        FROM activity_log
+        WHERE user_id IN (SELECT user_id FROM participants WHERE username = ?)
+    ''', (username,))
+    first_last = cursor.fetchone()
+
+    conn.close()
+
+    if total_messages == 0:
+        await update.message.reply_text(f"No hay actividad registrada para @{username}")
+        return
+
+    weekday_names = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
+
+    activity_text = f"""
+📈 **Análisis de Actividad - @{username}**
+
+**Resumen:**
+• Total de mensajes: {total_messages}
+• Primera actividad: {first_last[0][:10] if first_last[0] else 'N/A'}
+• Última actividad: {first_last[1][:10] if first_last[1] else 'N/A'}
+
+**Horas más activas:**
+"""
+    for hour, count in hourly:
+        activity_text += f"  • {hour}:00h — {count} mensajes\n"
+
+    activity_text += "\n**Días más activos:**\n"
+    for weekday, count in weekly[:3]:
+        day_name = weekday_names[int(weekday)] if weekday else '?'
+        activity_text += f"  • {day_name} — {count} mensajes\n"
+
+    bot_instance.add_points(scanner_id, 15)
+    activity_text += "\n✅ +15 puntos por análisis de actividad"
+
+    await update.message.reply_html(activity_text)
+
+
+async def common_groups(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Mostrar grupos en común con usuario"""
+    if not context.args:
+        await update.message.reply_text("Uso: /common_groups @usuario")
+        return
+
+    username = context.args[0].replace('@', '')
+    scanner_id = update.effective_user.id
+
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
+    # Obtener chats donde el usuario ha tenido actividad
+    cursor.execute('''
+        SELECT DISTINCT chat_id, COUNT(*) as msgs
+        FROM activity_log
+        WHERE user_id IN (SELECT user_id FROM participants WHERE username = ?)
+        GROUP BY chat_id ORDER BY msgs DESC
+    ''', (username,))
+    user_chats = cursor.fetchall()
+
+    # Obtener chats del usuario que hace la consulta
+    cursor.execute('''
+        SELECT DISTINCT chat_id
+        FROM activity_log
+        WHERE user_id = ?
+    ''', (scanner_id,))
+    my_chats = {row[0] for row in cursor.fetchall()}
+
+    conn.close()
+
+    common = [(chat_id, msgs) for chat_id, msgs in user_chats if chat_id in my_chats]
+
+    if not user_chats:
+        await update.message.reply_text(f"No hay actividad registrada para @{username}")
+        return
+
+    bot_instance.add_points(scanner_id, 10)
+
+    groups_text = f"""
+👥 **Grupos en Común - @{username}**
+
+**Chats con actividad de @{username}:** {len(user_chats)}
+**Grupos en común contigo:** {len(common)}
+"""
+
+    if common:
+        groups_text += "\n**Grupos compartidos:**\n"
+        for chat_id, msgs in common:
+            groups_text += f"  • Chat ID {chat_id}: {msgs} mensajes\n"
+    else:
+        groups_text += "\nNo se encontraron grupos en común en la base de datos de este bot.\n"
+
+    groups_text += "\n✅ +10 puntos por análisis de grupos"
+
+    await update.message.reply_html(groups_text)
+
+
+async def report(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Generar reporte OSINT completo"""
+    if not context.args:
+        await update.message.reply_text("Uso: /report @usuario")
+        return
+
+    username = context.args[0].replace('@', '')
+    scanner_id = update.effective_user.id
+
+    await update.message.reply_text(f"📄 Generando reporte OSINT completo de @{username}...")
+
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
+    # Datos del participante
+    cursor.execute('''
+        SELECT user_id, full_name, joined_at, points, osint_scans, phishing_failed, ctf_flags_found
+        FROM participants WHERE username = ?
+    ''', (username,))
+    participant = cursor.fetchone()
+
+    # Total de mensajes
+    cursor.execute('''
+        SELECT COUNT(*), MIN(timestamp), MAX(timestamp)
+        FROM activity_log
+        WHERE user_id IN (SELECT user_id FROM participants WHERE username = ?)
+    ''', (username,))
+    msg_stats = cursor.fetchone()
+
+    # Hora más activa
+    cursor.execute('''
+        SELECT strftime('%H', timestamp) as hour, COUNT(*) as cnt
+        FROM activity_log
+        WHERE user_id IN (SELECT user_id FROM participants WHERE username = ?)
+        GROUP BY hour ORDER BY cnt DESC LIMIT 1
+    ''', (username,))
+    peak_hour = cursor.fetchone()
+
+    # Últimos scans OSINT sobre este usuario
+    cursor.execute('''
+        SELECT scan_type, timestamp FROM osint_scans
+        WHERE target_id IN (SELECT user_id FROM participants WHERE username = ?)
+        ORDER BY timestamp DESC LIMIT 5
+    ''', (username,))
+    scans_on_user = cursor.fetchall()
+
+    conn.close()
+
+    if not participant:
+        await update.message.reply_text(
+            f"@{username} no está registrado en este bot.\n"
+            "Solo se pueden generar reportes de usuarios que hayan usado /start."
+        )
+        return
+
+    user_id, full_name, joined_at, points, osint_scans, phishing_failed, ctf_flags = participant
+    total_msgs, first_msg, last_msg = msg_stats
+
+    report_text = f"""
+📊 **REPORTE OSINT COMPLETO**
+━━━━━━━━━━━━━━━━━━━━━━━
+
+**Objetivo:** @{username}
+**Nombre:** {full_name or 'Desconocido'}
+**User ID:** {user_id}
+**Registrado:** {joined_at[:10] if joined_at else 'N/A'}
+
+**Actividad:**
+• Total de mensajes: {total_msgs or 0}
+• Primera actividad: {first_msg[:10] if first_msg else 'N/A'}
+• Última actividad: {last_msg[:10] if last_msg else 'N/A'}
+• Hora pico: {peak_hour[0] + ':00h' if peak_hour else 'N/A'}
+
+**Participación en el Lab:**
+• Puntos acumulados: {points}
+• Scans OSINT realizados: {osint_scans}
+• Tests de phishing fallidos: {phishing_failed}
+• Flags CTF encontradas: {ctf_flags}
+
+**Scans recibidos:** {len(scans_on_user)}
+
+━━━━━━━━━━━━━━━━━━━━━━━
+**Escaneado por:** {update.effective_user.mention_html()}
+**Fecha del reporte:** {datetime.now().strftime('%Y-%m-%d %H:%M')}
+
+✅ +20 puntos por generar reporte completo
+    """
+
+    bot_instance.add_points(scanner_id, 20)
+
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('''
+        INSERT INTO osint_scans (scanner_id, target_id, scan_type, findings, timestamp)
+        VALUES (?, ?, ?, ?, ?)
+    ''', (scanner_id, user_id, 'full_report', json.dumps({'target': username}), datetime.now().isoformat()))
+    conn.commit()
+    conn.close()
+
+    await update.message.reply_html(report_text)
+
+
+# ==================== COMANDOS DE ADMINISTRADOR ====================
+
+async def give_consent(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Dar consentimiento a un usuario (solo admin)"""
+    admin_id = update.effective_user.id
+
+    if admin_id not in ADMIN_IDS:
+        await update.message.reply_text("⛔ Este comando es solo para administradores.")
+        return
+
+    if not context.args:
+        await update.message.reply_text("Uso: /give_consent @usuario")
+        return
+
+    username = context.args[0].replace('@', '')
+
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('''
+        UPDATE participants SET consent_given = 1 WHERE username = ?
+    ''', (username,))
+    rows_affected = cursor.rowcount
+    conn.commit()
+    conn.close()
+
+    if rows_affected > 0:
+        await update.message.reply_html(
+            f"✅ Consentimiento otorgado a @{username}\n"
+            f"El usuario puede participar plenamente en los ejercicios."
+        )
+    else:
+        await update.message.reply_text(
+            f"⚠️ Usuario @{username} no encontrado.\n"
+            "El usuario debe usar /start primero para registrarse."
+        )
+
+
+async def reset_points(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Reiniciar puntos de todos los participantes (solo admin)"""
+    admin_id = update.effective_user.id
+
+    if admin_id not in ADMIN_IDS:
+        await update.message.reply_text("⛔ Este comando es solo para administradores.")
+        return
+
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
+    if context.args and context.args[0].startswith('@'):
+        # Reiniciar solo un usuario
+        username = context.args[0].replace('@', '')
+        cursor.execute('''
+            UPDATE participants SET points = 0, osint_scans = 0,
+            phishing_caught = 0, phishing_failed = 0, ctf_flags_found = 0
+            WHERE username = ?
+        ''', (username,))
+        rows = cursor.rowcount
+        conn.commit()
+        conn.close()
+        if rows > 0:
+            await update.message.reply_html(f"✅ Puntos de @{username} reiniciados a 0.")
+        else:
+            await update.message.reply_text(f"⚠️ Usuario @{username} no encontrado.")
+    else:
+        # Reiniciar todos
+        cursor.execute('''
+            UPDATE participants SET points = 0, osint_scans = 0,
+            phishing_caught = 0, phishing_failed = 0, ctf_flags_found = 0
+        ''')
+        rows = cursor.rowcount
+        conn.commit()
+        conn.close()
+        await update.message.reply_html(
+            f"✅ Puntos de <b>todos los participantes</b> reiniciados a 0.\n"
+            f"({rows} usuarios afectados)"
+        )
+
+
 # ==================== REGISTRO DE ACTIVIDAD ====================
 
 async def log_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -653,14 +1196,22 @@ def main():
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(CommandHandler("osint_scan", osint_scan))
+    application.add_handler(CommandHandler("reverse_image", reverse_image))
+    application.add_handler(CommandHandler("metadata", metadata))
     application.add_handler(CommandHandler("timeline", timeline))
+    application.add_handler(CommandHandler("correlate", correlate))
     application.add_handler(CommandHandler("patterns", patterns))
+    application.add_handler(CommandHandler("activity", activity))
+    application.add_handler(CommandHandler("common_groups", common_groups))
+    application.add_handler(CommandHandler("report", report))
     application.add_handler(CommandHandler("phish_create", phish_create))
     application.add_handler(CommandHandler("phish_stats", phish_stats))
     application.add_handler(CommandHandler("ctf_status", ctf_status))
     application.add_handler(CommandHandler("submit_flag", submit_flag))
     application.add_handler(CommandHandler("leaderboard", leaderboard))
     application.add_handler(CommandHandler("mystats", mystats))
+    application.add_handler(CommandHandler("give_consent", give_consent))
+    application.add_handler(CommandHandler("reset_points", reset_points))
     
     # Callbacks
     application.add_handler(CallbackQueryHandler(phishing_callback, pattern='^phish_'))
